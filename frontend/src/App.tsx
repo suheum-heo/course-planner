@@ -1,25 +1,46 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
 
 type Course = { id: string; title: string; credits: number };
 
 export default function App() {
   const [catalog, setCatalog] = useState<Course[]>([]);
   const [taken, setTaken] = useState<string[]>([]);
+  const [planned, setPlanned] = useState<string[]>([]);
   const [selected, setSelected] = useState<string>("");
 
   useEffect(() => {
-    axios.get<Course[]>("http://localhost:3000/catalog").then((res) => {
-      setCatalog(res.data);
-    });
+    fetch("/api/catalog")
+      .then((res) => res.json())
+      .then((data: Course[]) => setCatalog(data));
   }, []);
+
+  function addCourse(list: "taken" | "planned") {
+    if (!selected) return;
+
+    if (list === "taken") {
+      if (!taken.includes(selected)) {
+        setTaken([...taken, selected]);
+      }
+    } else {
+      if (!planned.includes(selected)) {
+        setPlanned([...planned, selected]);
+      }
+    }
+
+    setSelected("");
+  }
+
+  function courseLabel(id: string) {
+    const c = catalog.find((x) => x.id === id);
+    return c ? `${c.id} — ${c.title}` : id;
+  }
 
   return (
     <div style={{ padding: 24, fontFamily: "system-ui" }}>
-      <h1>Course Planner (MVP)</h1>
+      <h1>Course Planner</h1>
 
       <label>
-        Add course to Taken:{" "}
+        Select course:{" "}
         <select value={selected} onChange={(e) => setSelected(e.target.value)}>
           <option value="">-- choose --</option>
           {catalog.map((c) => (
@@ -30,24 +51,27 @@ export default function App() {
         </select>
       </label>
 
-      <button
-        style={{ marginLeft: 8 }}
-        onClick={() => {
-          if (!selected) return;
-          if (taken.includes(selected)) return;
-          setTaken([...taken, selected]);
-          setSelected("");
-        }}
-      >
-        Add
-      </button>
+      <div style={{ marginTop: 12 }}>
+        <button onClick={() => addCourse("taken")}>Add to Taken</button>
+        <button onClick={() => addCourse("planned")} style={{ marginLeft: 8 }}>
+          Add to Planned
+        </button>
+      </div>
+
+      <hr style={{ margin: "24px 0" }} />
 
       <h2>Taken</h2>
       <ul>
-        {taken.map((id) => {
-          const c = catalog.find((x) => x.id === id);
-          return <li key={id}>{id} — {c?.title}</li>;
-        })}
+        {taken.map((id) => (
+          <li key={id}>{courseLabel(id)}</li>
+        ))}
+      </ul>
+
+      <h2>Planned</h2>
+      <ul>
+        {planned.map((id) => (
+          <li key={id}>{courseLabel(id)}</li>
+        ))}
       </ul>
     </div>
   );
