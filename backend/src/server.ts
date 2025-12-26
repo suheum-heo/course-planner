@@ -1,5 +1,8 @@
 import express from "express";
 import cors from "cors";
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
 
 const app = express();
 app.use(cors());
@@ -103,6 +106,16 @@ function creditsFor(courseIds: string[]) {
   }, 0);
 }
 
+function safeParseArray(value: string): string[] {
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+
 // =====================
 // Routes
 // =====================
@@ -113,6 +126,38 @@ app.get("/api/health", (_req, res) => {
 app.get("/api/catalog", (_req, res) => {
   res.json(CATALOG);
 });
+
+app.get("/api/plans/:id", async (req, res) => {
+  const id = req.params.id;
+
+  const plan = await prisma.plan.findUnique({ where: { id } });
+  if (!plan) return res.status(404).json({ error: "Plan not found" });
+
+  res.json({
+    id: plan.id,
+    taken: safeParseArray(plan.taken),
+    inProgress: safeParseArray(plan.inProgress),
+    planned: safeParseArray(plan.planned),
+  });
+});
+
+
+app.post("/api/plans", async (req, res) => {
+  const taken: string[] = Array.isArray(req.body?.taken) ? req.body.taken : [];
+  const inProgress: string[] = Array.isArray(req.body?.inProgress) ? req.body.inProgress : [];
+  const planned: string[] = Array.isArray(req.body?.planned) ? req.body.planned : [];
+
+  const plan = await prisma.plan.create({
+    data: {
+      taken: JSON.stringify(taken),
+      inProgress: JSON.stringify(inProgress),
+      planned: JSON.stringify(planned),
+    },
+  });
+
+  res.json({ id: plan.id });
+});
+
 
 app.post("/api/plan/validate", (req, res) => {
   const taken: string[] = Array.isArray(req.body?.taken) ? req.body.taken : [];
@@ -189,7 +234,38 @@ app.post("/api/plan/validate", (req, res) => {
   });
 });
 
+app.put("/api/plans/:id", async (req, res) => {
+  const id = req.params.id;
+
+  const taken: string[] = Array.isArray(req.body?.taken) ? req.body.taken : [];
+  const inProgress: string[] = Array.isArray(req.body?.inProgress) ? req.body.inProgress : [];
+  const planned: string[] = Array.isArray(req.body?.planned) ? req.body.planned : [];
+
+  try {
+    const updated = await prisma.plan.update({
+      where: { id },
+      data: {
+        taken: JSON.stringify(taken),
+        inProgress: JSON.stringify(inProgress),
+        planned: JSON.stringify(planned),
+      },
+    });
+
+    res.json({ id: updated.id, ok: true });
+  } catch {
+    res.status(404).json({ error: "Plan not found" });
+  }
+});
+
+
 // =====================
 app.listen(3000, () => {
   console.log("Backend running on http://localhost:3000");
 });
+
+process.on("SIGINT", async () => {
+  console.log("Shutting down Prisma...");
+  await prisma.$disconnect();
+  process.exit(0);
+});
+

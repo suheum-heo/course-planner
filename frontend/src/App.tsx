@@ -30,6 +30,8 @@ export default function App() {
   const [inProgress, setInProgress] = useState<string[]>([]);
   const [planned, setPlanned] = useState<string[]>([]);
   const [selected, setSelected] = useState<string>("");
+  const [planId, setPlanId] = useState<string>(() => localStorage.getItem("planId") || "");
+  const [saveMsg, setSaveMsg] = useState<string>("");
 
   const [validations, setValidations] = useState<ValidationItem[]>([]);
   const [requirements, setRequirements] = useState<RequirementResult[]>([]);
@@ -120,12 +122,87 @@ export default function App() {
     [validations]
   );
 
+  async function createPlan() {
+  setSaveMsg("");
+  const res = await fetch("/api/plans", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ taken, inProgress, planned }),
+  });
+  if (!res.ok) throw new Error(`Create failed: HTTP ${res.status}`);
+  const data: { id: string } = await res.json();
+  setPlanId(data.id);
+  localStorage.setItem("planId", data.id);
+  setSaveMsg(`Created plan: ${data.id}`);
+}
+
+  async function savePlan() {
+    if (!planId) {
+      await createPlan();
+      return;
+    }
+    setSaveMsg("");
+    const res = await fetch(`/api/plans/${planId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ taken, inProgress, planned }),
+    });
+    if (!res.ok) throw new Error(`Save failed: HTTP ${res.status}`);
+    setSaveMsg("Saved ✅");
+  }
+
+  async function loadPlan(id: string) {
+    setSaveMsg("");
+    const res = await fetch(`/api/plans/${id}`);
+    if (!res.ok) throw new Error(`Load failed: HTTP ${res.status}`);
+    const data: { taken: string[]; inProgress: string[]; planned: string[]; id: string } =
+      await res.json();
+
+    setTaken(data.taken);
+    setInProgress(data.inProgress);
+    setPlanned(data.planned);
+
+    setPlanId(data.id);
+    localStorage.setItem("planId", data.id);
+    setSaveMsg(`Loaded plan: ${data.id}`);
+}
+
+
   // ----------------------
   // Render
   // ----------------------
   return (
     <div style={{ padding: 24, fontFamily: "system-ui" }}>
       <h1>Course Planner</h1>
+
+      <div style={{ marginTop: 8, marginBottom: 16 }}>
+        <button onClick={() => savePlan()}>Save</button>
+        <button onClick={() => createPlan()} style={{ marginLeft: 8 }}>
+          Save As New
+        </button>
+
+        <span style={{ marginLeft: 12 }}>
+          Plan ID:{" "}
+          <input
+            value={planId}
+            onChange={(e) => setPlanId(e.target.value)}
+            placeholder="(none yet)"
+            style={{ width: 280 }}
+          />
+        </span>
+
+        <button
+          onClick={() => {
+            if (!planId) return;
+            loadPlan(planId);
+          }}
+          style={{ marginLeft: 8 }}
+        >
+          Load
+        </button>
+
+        {saveMsg && <div style={{ marginTop: 8 }}>{saveMsg}</div>}
+      </div>
 
       {/* Credits summary */}
       <div style={{ marginTop: 8, marginBottom: 16 }}>
