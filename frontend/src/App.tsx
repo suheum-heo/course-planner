@@ -9,6 +9,21 @@ type ValidationItem = {
   messages: string[];
 };
 
+type RequirementResult =
+  | {
+      id: string;
+      title: string;
+      done: boolean;
+      missing: string[];
+    }
+  | {
+      id: string;
+      title: string;
+      done: boolean;
+      current: number;
+      required: number;
+    };
+
 export default function App() {
   const [catalog, setCatalog] = useState<Course[]>([]);
   const [taken, setTaken] = useState<string[]>([]);
@@ -17,16 +32,22 @@ export default function App() {
   const [selected, setSelected] = useState<string>("");
 
   const [validations, setValidations] = useState<ValidationItem[]>([]);
+  const [requirements, setRequirements] = useState<RequirementResult[]>([]);
   const [loadingValidation, setLoadingValidation] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
+  // ----------------------
+  // Load catalog
+  // ----------------------
   useEffect(() => {
     fetch("/api/catalog")
       .then((res) => res.json())
       .then((data: Course[]) => setCatalog(data));
   }, []);
 
-  // validate whenever taken/inProgress/planned changes
+  // ----------------------
+  // Validate plan
+  // ----------------------
   useEffect(() => {
     setLoadingValidation(true);
     setValidationError(null);
@@ -40,13 +61,22 @@ export default function App() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
-      .then((data: { courseValidations: ValidationItem[] }) => {
-        setValidations(data.courseValidations ?? []);
-      })
+      .then(
+        (data: {
+          courseValidations: ValidationItem[];
+          requirements: RequirementResult[];
+        }) => {
+          setValidations(data.courseValidations ?? []);
+          setRequirements(data.requirements ?? []);
+        }
+      )
       .catch((e) => setValidationError(String(e)))
       .finally(() => setLoadingValidation(false));
   }, [taken, inProgress, planned]);
 
+  // ----------------------
+  // Helpers
+  // ----------------------
   function addCourse(list: "taken" | "inProgress" | "planned") {
     if (!selected) return;
 
@@ -85,24 +115,28 @@ export default function App() {
   const totalAttempted = creditsTaken + creditsInProgress + creditsPlanned;
   const remainingTo120 = Math.max(0, 120 - creditsTaken);
 
+  const validationByCourseId = useMemo(
+    () => new Map(validations.map((v) => [v.courseId, v])),
+    [validations]
+  );
 
-  const validationByCourseId = useMemo(() => {
-    return new Map(validations.map((v) => [v.courseId, v]));
-  }, [validations]);
-
+  // ----------------------
+  // Render
+  // ----------------------
   return (
     <div style={{ padding: 24, fontFamily: "system-ui" }}>
       <h1>Course Planner</h1>
 
+      {/* Credits summary */}
       <div style={{ marginTop: 8, marginBottom: 16 }}>
         <div>Credits Taken: <b>{creditsTaken}</b></div>
         <div>Credits In Progress: <b>{creditsInProgress}</b></div>
         <div>Credits Planned: <b>{creditsPlanned}</b></div>
-        <div>Total (Taken + In Progress + Planned): <b>{totalAttempted}</b></div>
-        <div>Remaining to 120 (based on Taken): <b>{remainingTo120}</b></div>
+        <div>Total Attempted: <b>{totalAttempted}</b></div>
+        <div>Remaining to 120 (Taken only): <b>{remainingTo120}</b></div>
       </div>
 
-
+      {/* Course picker */}
       <label>
         Select course:{" "}
         <select value={selected} onChange={(e) => setSelected(e.target.value)}>
@@ -127,13 +161,14 @@ export default function App() {
 
       <hr style={{ margin: "24px 0" }} />
 
+      {/* Lists */}
       <div style={{ display: "flex", gap: 24 }}>
         <div style={{ flex: 1 }}>
           <h2>Taken</h2>
           <ul>
             {taken.map((id) => (
               <li key={id}>
-                {courseLabel(id)}{" "}
+                {courseLabel(id)}
                 <button onClick={() => removeCourse("taken", id)} style={{ marginLeft: 8 }}>
                   remove
                 </button>
@@ -147,7 +182,7 @@ export default function App() {
           <ul>
             {inProgress.map((id) => (
               <li key={id}>
-                {courseLabel(id)}{" "}
+                {courseLabel(id)}
                 <button onClick={() => removeCourse("inProgress", id)} style={{ marginLeft: 8 }}>
                   remove
                 </button>
@@ -161,29 +196,23 @@ export default function App() {
           <ul>
             {planned.map((id) => {
               const v = validationByCourseId.get(id);
-
-              const statusLine =
-                !v ? null : v.status === "valid" ? (
-                  <div style={{ color: "green", marginTop: 4 }}>✅ OK</div>
-                ) : v.status === "warning" ? (
-                  <div style={{ color: "#b26a00", marginTop: 4 }}>
-                    ⚠️ {v.messages.join(" | ")}
-                  </div>
-                ) : (
-                  <div style={{ color: "red", marginTop: 4 }}>
-                    ❌ {v.messages.join(" | ")}
-                  </div>
-                );
-
               return (
                 <li key={id} style={{ marginBottom: 10 }}>
                   <div>
-                    {courseLabel(id)}{" "}
+                    {courseLabel(id)}
                     <button onClick={() => removeCourse("planned", id)} style={{ marginLeft: 8 }}>
                       remove
                     </button>
                   </div>
-                  {statusLine}
+
+                  {v &&
+                    (v.status === "valid" ? (
+                      <div style={{ color: "green" }}>✅ OK</div>
+                    ) : v.status === "warning" ? (
+                      <div style={{ color: "#b26a00" }}>⚠️ {v.messages.join(" | ")}</div>
+                    ) : (
+                      <div style={{ color: "red" }}>❌ {v.messages.join(" | ")}</div>
+                    ))}
                 </li>
               );
             })}
@@ -193,12 +222,36 @@ export default function App() {
 
       <hr style={{ margin: "24px 0" }} />
 
-      <h2>Validation</h2>
+      {/* Degree requirements */}
+      <h2>Degree Requirements</h2>
+      <ul>
+        {requirements.map((r) => (
+          <li key={r.id} style={{ marginBottom: 8 }}>
+            <b>{r.title}</b>{" "}
+            {r.done ? (
+              <span style={{ color: "green" }}>✅ Completed</span>
+            ) : "missing" in r ? (
+              <span style={{ color: "red" }}>
+                ❌ Missing: {r.missing.join(", ")}
+              </span>
+            ) : (
+              <span style={{ color: "red" }}>
+                ❌ {r.current}/{r.required} credits
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <hr style={{ margin: "24px 0" }} />
+
+      {/* Debug */}
+      <h2>Validation (debug)</h2>
       {loadingValidation && <p>Validating...</p>}
       {validationError && <p style={{ color: "red" }}>Error: {validationError}</p>}
       {!loadingValidation && !validationError && (
-        <pre style={{ background: "#f6f6f6", padding: 12, borderRadius: 8 }}>
-          {JSON.stringify(validations, null, 2)}
+        <pre style={{ background: "#f6f6f6", padding: 12 }}>
+          {JSON.stringify({ validations, requirements }, null, 2)}
         </pre>
       )}
     </div>
