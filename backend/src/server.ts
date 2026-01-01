@@ -330,6 +330,10 @@ app.get("/api/plans/:id", async (req, res) => {
   });
 });
 
+app.get("/", (req, res) => {
+  res.json({ ok: true, service: "course-planner-backend" });
+});
+
 app.post("/api/plans", async (req, res) => {
   const body = (req.body ?? {}) as Partial<PlanPayload>;
 
