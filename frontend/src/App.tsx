@@ -334,7 +334,7 @@ export default function App() {
       return [...prev, nextSem];
     });
 
-    setActiveSemesterOrder((prevActive) => {
+    setActiveSemesterOrder((_prevActive) => {
       const maxOrder = semesters.reduce((m, s) => Math.max(m, s.order), -1);
       return maxOrder + 1;
     });
@@ -375,7 +375,6 @@ export default function App() {
   const creditsTaken = creditsForIds(taken);
   const creditsInProgress = creditsForIds(inProgress);
   const creditsPlanned = semesters.reduce((sum, s) => sum + creditsForSemester(s), 0);
-  const totalAttempted = creditsTaken + creditsInProgress + creditsPlanned;
   const remainingTo120 = Math.max(0, 120 - creditsTaken);
 
   // ----------------------
