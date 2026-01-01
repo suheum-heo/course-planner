@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://course-planner-jb4p.onrender.com/api/$1"
+    }
+  ]
+}
