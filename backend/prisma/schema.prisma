@@ -8,10 +8,47 @@ generator client {
 }
 
 model Plan {
-  id         String   @id @default(cuid())
-  taken      String   // JSON stringified array
-  inProgress String   // JSON stringified array
-  planned    String   // JSON stringified array
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id         String @id @default(cuid())
+  taken      String // JSON stringified array
+  inProgress String // JSON stringified array
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ✅ opposite relation field (fixes your error)
+  semesters Semester[]
+}
+
+model Semester {
+  id     String @id @default(cuid())
+  planId String
+  name   String
+  order  Int
+
+  plan    Plan            @relation(fields: [planId], references: [id], onDelete: Cascade)
+  courses PlannedCourse[]
+
+  @@index([planId])
+}
+
+model PlannedCourse {
+  id              String @id @default(cuid())
+  semesterId      String
+  courseId        String
+  order           Int
+  creditsOverride Int?
+
+  semester Semester @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+
+  @@index([semesterId])
+}
+
+model Course {
+  uuid      String   @id
+  name      String
+  number    Int?
+  subjects  String // JSON string
+  raw       String // full Madgrades payload
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
