@@ -897,14 +897,27 @@ export default function App() {
 
           <hr style={{ margin: "24px 0", borderColor: theme.border }} />
 
-          {/* Debug */}
-          <h2>Validation (debug)</h2>
-          {loadingValidation && <p>Validating...</p>}
-          {validationError && <p style={{ color: "#b91c1c" }}>Error: {validationError}</p>}
-          {!loadingValidation && !validationError && (
-            <pre style={{ background: theme.mutedCard, padding: 12, borderRadius: 12, border: `1px solid ${theme.border}` }}>
-              {JSON.stringify({ validations, requirements, semesters, creditOverrides }, null, 2)}
-            </pre>
+          {/* Debug (dev-only) */}
+          {import.meta.env.DEV && (
+            <>
+              <hr style={{ margin: "24px 0", borderColor: theme.border }} />
+
+              <h2>Validation (debug)</h2>
+              {loadingValidation && <p>Validating...</p>}
+              {validationError && <p style={{ color: "#b91c1c" }}>Error: {validationError}</p>}
+              {!loadingValidation && !validationError && (
+                <pre
+                  style={{
+                    background: theme.mutedCard,
+                    padding: 12,
+                    borderRadius: 12,
+                    border: `1px solid ${theme.border}`,
+                  }}
+                >
+                  {JSON.stringify({ validations, requirements, semesters, creditOverrides }, null, 2)}
+                </pre>
+              )}
+            </>
           )}
         </div>
       </div>
