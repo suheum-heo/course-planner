@@ -6,14 +6,14 @@ Built with a modern React frontend, a Node.js backend, and a PostgreSQL database
 
 ---
 
-## 🌐 Live Demo
+## Live Demo
 🔗 [https://course-planner.vercel.app](https://course-planner-k7rm.vercel.app)
 
 The app is publicly accessible and does not require running anything locally.
 
 ---
 
-## 🚀 Features
+## Features
 - Search and browse courses in real time
 - Plan courses across multiple semesters
 - Validate prerequisites and course combinations
@@ -22,7 +22,7 @@ The app is publicly accessible and does not require running anything locally.
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 
 ### Frontend
 - React + TypeScript
@@ -37,7 +37,7 @@ The app is publicly accessible and does not require running anything locally.
 
 ---
 
-## 🧠 Architecture Overview
+## Architecture Overview
 - The frontend communicates with the backend via RESTful API endpoints under `/api`
 - In production, Vercel rewrites API requests to the Render backend
 - Prisma handles database access and schema management
