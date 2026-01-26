@@ -326,7 +326,7 @@ export default function App() {
         };
       })
     );
-    // ALSO update global override so totals/taken update
+    // Update global override so totals/taken update
     setGlobalCreditsOverride(courseId, next);
   }
 
@@ -362,15 +362,11 @@ export default function App() {
       const nextOrder = (last?.order ?? -1) + 1;
       const nextName = nextTermName(last?.name ?? "Fall 2024");
       const nextSem: Semester = { name: nextName, order: nextOrder, courses: [] };
-      return [...prev, nextSem];
-    });
 
-    // FIX: compute from prev inside setter, not from outer stale `semesters`
-    setActiveSemesterOrder((prevActive) => {
-      const maxOrder = semesters.reduce((m, s) => Math.max(m, s.order), -1);
-      // If semesters is stale here, it’s okay-ish, but we can do safer:
-      // return Math.max(prevActive, maxOrder + 1);
-      return maxOrder + 1;
+      // Set active semester based on the same computed nextOrder
+      setActiveSemesterOrder(nextOrder);
+
+      return [...prev, nextSem];
     });
   }
 
@@ -422,7 +418,7 @@ export default function App() {
     setSelected("");
   }
 
-  // Validation map (YOU WERE MISSING THIS)
+  // Validation map
   const validationByCourseId = useMemo(() => {
     const m = new Map<string, ValidationItem>();
     for (const v of validations) m.set(v.courseId, v);
