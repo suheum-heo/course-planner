@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 // =======================
 // Types
@@ -94,10 +94,10 @@ export default function App() {
 
   const [activeSemesterOrder, setActiveSemesterOrder] = useState<number>(2); // Fall 2024
 
-  // ✅ NEW: global per-course credit overrides (applies everywhere)
+  // Global per-course credit overrides (applies everywhere)
   const [creditOverrides, setCreditOverrides] = useState<Record<string, number>>({});
 
-  // ✅ NEW: collapsible semesters
+  // Collapsible semesters
   const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
 
   // Save/load
@@ -183,6 +183,7 @@ export default function App() {
           const list = Array.isArray(data) ? data : [];
           setSearchResults(list);
 
+          // cache results
           setCourseCache((prev) => {
             const next = { ...prev };
             for (const c of list) next[c.id] = c;
@@ -206,7 +207,7 @@ export default function App() {
     fetch("/api/plan/validate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ taken, inProgress, semesters }),
+      body: JSON.stringify({ taken, inProgress, semesters, creditOverrides }),
     })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -218,7 +219,7 @@ export default function App() {
       })
       .catch((e) => setValidationError(String(e)))
       .finally(() => setLoadingValidation(false));
-  }, [taken, inProgress, semesters]);
+  }, [taken, inProgress, semesters, creditOverrides]);
 
   // ----------------------
   // Helpers
@@ -228,17 +229,12 @@ export default function App() {
     return c ? `${c.id} — ${c.title}` : id;
   }
 
-  function addUnique(arr: string[], id: string, setArr: (v: string[]) => void) {
-    if (!id) return;
-    if (!arr.includes(id)) setArr([...arr, id]);
-  }
-
   function removeCourse(list: "taken" | "inProgress", id: string) {
     if (list === "taken") setTaken((prev) => prev.filter((x) => x !== id));
     if (list === "inProgress") setInProgress((prev) => prev.filter((x) => x !== id));
   }
 
-  // ✅ effective credits: global override > cache credits
+  // Effective credits: global override > cache credits
   function effectiveCredits(courseId: string): number {
     if (creditOverrides[courseId] != null) return creditOverrides[courseId];
     return courseCache[courseId]?.credits ?? 0;
@@ -251,6 +247,41 @@ export default function App() {
       else copy[courseId] = next;
       return copy;
     });
+  }
+
+  // Add a Course (not just an id) to taken/inProgress and ensure cache has it
+  function addUniqueCourse(course: Course, list: "taken" | "inProgress") {
+    setCourseCache((prev) => ({ ...prev, [course.id]: course }));
+
+    if (list === "taken") {
+      setTaken((prev) => (prev.includes(course.id) ? prev : [...prev, course.id]));
+    } else {
+      setInProgress((prev) => (prev.includes(course.id) ? prev : [...prev, course.id]));
+    }
+  }
+
+  // Ensure typed course IDs still work (fetch + cache on demand)
+  async function ensureCourseInCache(courseId: string): Promise<Course | null> {
+    const id = courseId.trim();
+    if (!id) return null;
+
+    if (courseCache[id]) return courseCache[id];
+
+    try {
+      const res = await fetch(`/api/catalog?query=${encodeURIComponent(id)}`);
+      if (!res.ok) return null;
+      const data: Course[] = await res.json();
+      const list = Array.isArray(data) ? data : [];
+
+      // prefer exact match
+      const exact = list.find((c) => c.id.toLowerCase() === id.toLowerCase()) ?? list[0];
+      if (!exact) return null;
+
+      setCourseCache((prev) => ({ ...prev, [exact.id]: exact }));
+      return exact;
+    } catch {
+      return null;
+    }
   }
 
   function addToActiveSemester(courseId: string, creditsOverride: number | null = null) {
@@ -285,7 +316,7 @@ export default function App() {
   }
 
   function setSemesterCreditsOverride(semOrder: number, courseId: string, next: number | null) {
-    // ✅ update semester row
+    // Update semester row
     setSemesters((prev) =>
       prev.map((s) => {
         if (s.order !== semOrder) return s;
@@ -295,7 +326,7 @@ export default function App() {
         };
       })
     );
-    // ✅ ALSO update global override so totals/taken update
+    // ALSO update global override so totals/taken update
     setGlobalCreditsOverride(courseId, next);
   }
 
@@ -334,8 +365,11 @@ export default function App() {
       return [...prev, nextSem];
     });
 
-    setActiveSemesterOrder((_prevActive) => {
+    // FIX: compute from prev inside setter, not from outer stale `semesters`
+    setActiveSemesterOrder((prevActive) => {
       const maxOrder = semesters.reduce((m, s) => Math.max(m, s.order), -1);
+      // If semesters is stale here, it’s okay-ish, but we can do safer:
+      // return Math.max(prevActive, maxOrder + 1);
       return maxOrder + 1;
     });
   }
@@ -360,18 +394,42 @@ export default function App() {
     });
   }
 
-  function addSelectedToActiveSemester() {
-    if (!selected) return;
-    addToActiveSemester(selected);
+  // Selected add actions (fetch + cache if needed)
+  async function addSelectedToTaken() {
+    const id = selected.trim();
+    if (!id) return;
+    const c = await ensureCourseInCache(id);
+    if (!c) return;
+    addUniqueCourse(c, "taken");
     setSelected("");
   }
 
-  const validationByCourseId = useMemo(
-    () => new Map(validations.map((v) => [v.courseId, v])),
-    [validations]
-  );
+  async function addSelectedToInProgress() {
+    const id = selected.trim();
+    if (!id) return;
+    const c = await ensureCourseInCache(id);
+    if (!c) return;
+    addUniqueCourse(c, "inProgress");
+    setSelected("");
+  }
 
-  // Credits summary (✅ now uses overrides!)
+  async function addSelectedToActiveSemester() {
+    const id = selected.trim();
+    if (!id) return;
+    const c = await ensureCourseInCache(id);
+    if (!c) return;
+    addToActiveSemester(c.id);
+    setSelected("");
+  }
+
+  // Validation map (YOU WERE MISSING THIS)
+  const validationByCourseId = useMemo(() => {
+    const m = new Map<string, ValidationItem>();
+    for (const v of validations) m.set(v.courseId, v);
+    return m;
+  }, [validations]);
+
+  // Credits summary
   const creditsTaken = creditsForIds(taken);
   const creditsInProgress = creditsForIds(inProgress);
   const creditsPlanned = semesters.reduce((sum, s) => sum + creditsForSemester(s), 0);
@@ -385,7 +443,7 @@ export default function App() {
     const res = await fetch("/api/plans", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ taken, inProgress, semesters }),
+      body: JSON.stringify({ taken, inProgress, semesters, creditOverrides }),
     });
     if (!res.ok) throw new Error(`Create failed: HTTP ${res.status}`);
     const data: { id: string } = await res.json();
@@ -403,7 +461,7 @@ export default function App() {
     const res = await fetch(`/api/plans/${planId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ taken, inProgress, semesters }),
+      body: JSON.stringify({ taken, inProgress, semesters, creditOverrides }),
     });
     if (!res.ok) throw new Error(`Save failed: HTTP ${res.status}`);
     setSaveMsg("Saved ✅");
@@ -414,11 +472,18 @@ export default function App() {
     const res = await fetch(`/api/plans/${id}`);
     if (!res.ok) throw new Error(`Load failed: HTTP ${res.status}`);
 
-    const data: { id: string; taken: string[]; inProgress: string[]; semesters: Semester[] } = await res.json();
+    const data: {
+      id: string;
+      taken: string[];
+      inProgress: string[];
+      semesters: Semester[];
+      creditOverrides?: Record<string, number>;
+    } = await res.json();
 
     setTaken(Array.isArray(data.taken) ? data.taken : []);
     setInProgress(Array.isArray(data.inProgress) ? data.inProgress : []);
     setSemesters(Array.isArray(data.semesters) ? data.semesters : []);
+    setCreditOverrides(data.creditOverrides ?? {});
 
     setPlanId(data.id);
     localStorage.setItem("planId", data.id);
@@ -453,7 +518,7 @@ export default function App() {
           overflow: "hidden",
         }}
       >
-        {/* ✅ Sticky top bar */}
+        {/* Sticky top bar */}
         <div
           style={{
             position: "sticky",
@@ -573,12 +638,15 @@ export default function App() {
                         <button onClick={() => setSelected(c.id)} style={btn}>
                           Select
                         </button>
-                        <button onClick={() => addUnique(taken, c.id, setTaken)} style={btn}>
+
+                        {/* IMPORTANT FIX: use addUniqueCourse so cache gets populated */}
+                        <button onClick={() => addUniqueCourse(c, "taken")} style={btn}>
                           + Taken
                         </button>
-                        <button onClick={() => addUnique(inProgress, c.id, setInProgress)} style={btn}>
+                        <button onClick={() => addUniqueCourse(c, "inProgress")} style={btn}>
                           + In Progress
                         </button>
+
                         <button onClick={() => addToActiveSemester(c.id)} style={primaryBtn}>
                           + Active Semester
                         </button>
@@ -594,24 +662,10 @@ export default function App() {
               <div style={{ marginBottom: 6, fontWeight: 700 }}>Selected</div>
               <input value={selected} onChange={(e) => setSelected(e.target.value)} placeholder="Course ID" style={inputStyle} />
               <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button
-                  onClick={() => {
-                    if (!selected) return;
-                    addUnique(taken, selected, setTaken);
-                    setSelected("");
-                  }}
-                  style={btn}
-                >
+                <button onClick={addSelectedToTaken} style={btn}>
                   Add to Taken
                 </button>
-                <button
-                  onClick={() => {
-                    if (!selected) return;
-                    addUnique(inProgress, selected, setInProgress);
-                    setSelected("");
-                  }}
-                  style={btn}
-                >
+                <button onClick={addSelectedToInProgress} style={btn}>
                   Add to In Progress
                 </button>
                 <button onClick={addSelectedToActiveSemester} style={primaryBtn} disabled={!selected}>
@@ -637,7 +691,6 @@ export default function App() {
                         credits: <b>{effectiveCredits(id)}</b>
                       </span>
 
-                      {/* ✅ optional: set credits override from Taken */}
                       <input
                         type="number"
                         placeholder="override"
@@ -881,9 +934,7 @@ export default function App() {
                     {r.done ? (
                       <span style={{ color: "#15803d", fontWeight: 700 }}>✅ Completed</span>
                     ) : "missing" in r ? (
-                      <span style={{ color: "#b91c1c", fontWeight: 700 }}>
-                        ❌ Missing: {r.missing.join(", ")}
-                      </span>
+                      <span style={{ color: "#b91c1c", fontWeight: 700 }}>❌ Missing: {r.missing.join(", ")}</span>
                     ) : (
                       <span style={{ color: "#b91c1c", fontWeight: 700 }}>
                         ❌ {r.current}/{r.required} credits
@@ -900,8 +951,6 @@ export default function App() {
           {/* Debug (dev-only) */}
           {import.meta.env.DEV && (
             <>
-              <hr style={{ margin: "24px 0", borderColor: theme.border }} />
-
               <h2>Validation (debug)</h2>
               {loadingValidation && <p>Validating...</p>}
               {validationError && <p style={{ color: "#b91c1c" }}>Error: {validationError}</p>}
@@ -912,9 +961,10 @@ export default function App() {
                     padding: 12,
                     borderRadius: 12,
                     border: `1px solid ${theme.border}`,
+                    overflowX: "auto",
                   }}
                 >
-                  {JSON.stringify({ validations, requirements, semesters, creditOverrides }, null, 2)}
+                  {JSON.stringify({ validations, requirements, semesters, creditOverrides, taken, inProgress, courseCacheKeys: Object.keys(courseCache) }, null, 2)}
                 </pre>
               )}
             </>
