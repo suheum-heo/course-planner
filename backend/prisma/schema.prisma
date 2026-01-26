@@ -15,7 +15,7 @@ model Plan {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // ✅ opposite relation field (fixes your error)
+  creditOverrides String?
   semesters Semester[]
 }
 
