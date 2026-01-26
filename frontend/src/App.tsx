@@ -365,11 +365,8 @@ export default function App() {
       return [...prev, nextSem];
     });
 
-    // FIX: compute from prev inside setter, not from outer stale `semesters`
-    setActiveSemesterOrder((prevActive) => {
+    setActiveSemesterOrder(() => {
       const maxOrder = semesters.reduce((m, s) => Math.max(m, s.order), -1);
-      // If semesters is stale here, it’s okay-ish, but we can do safer:
-      // return Math.max(prevActive, maxOrder + 1);
       return maxOrder + 1;
     });
   }
