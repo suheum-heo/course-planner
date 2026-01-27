@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 
 // =======================
 // Types
@@ -176,7 +176,7 @@ export default function App() {
       setSearchLoading(true);
       setSearchError(null);
 
-      fetch(`/api/catalog?query=${encodeURIComponent(q)}`)
+      fetch(`${API_BASE}/api/catalog?query=${encodeURIComponent(q)}`)
         .then((res) => {
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           return res.json();
@@ -457,7 +457,7 @@ export default function App() {
       return;
     }
     setSaveMsg("");
-    const res = await fetch(`/api/plans/${planId}`, {
+    const res = await fetch(`${API_BASE}/api/plans/${planId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ taken, inProgress, semesters, creditOverrides }),
@@ -468,7 +468,7 @@ export default function App() {
 
   async function loadPlan(id: string) {
     setSaveMsg("");
-    const res = await fetch(`/api/plans/${id}`);
+    const res = await fetch(`${API_BASE}/api/plans/${id}`);
     if (!res.ok) throw new Error(`Load failed: HTTP ${res.status}`);
 
     const data: {
