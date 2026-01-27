@@ -33,3 +33,9 @@ build/
 # OS junk
 # =====================
 .DS_Store
+
+backend/prisma/dev.db
+backend/prisma/dev.db-journal
+backend/prisma/dev.db-wal
+backend/prisma/dev.db-shm
+
