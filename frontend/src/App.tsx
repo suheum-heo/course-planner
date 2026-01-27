@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+
 // =======================
 // Types
 // =======================
@@ -204,7 +206,7 @@ export default function App() {
     setLoadingValidation(true);
     setValidationError(null);
 
-    fetch("/api/plan/validate", {
+    fetch(`${API_BASE}/api/plan/validate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ taken, inProgress, semesters, creditOverrides }),
@@ -437,7 +439,7 @@ export default function App() {
   // ----------------------
   async function createPlan() {
     setSaveMsg("");
-    const res = await fetch("/api/plans", {
+    const res = await fetch(`${API_BASE}/api/plan`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ taken, inProgress, semesters, creditOverrides }),
