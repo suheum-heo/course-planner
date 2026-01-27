@@ -439,7 +439,7 @@ export default function App() {
   // ----------------------
   async function createPlan() {
     setSaveMsg("");
-    const res = await fetch(`${API_BASE}/api/plan`, {
+    const res = await fetch(`${API_BASE}/api/plans`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ taken, inProgress, semesters, creditOverrides }),
